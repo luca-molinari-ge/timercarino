@@ -1,0 +1,273 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relaxation Reminder</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            background-color: rgb(108, 219, 98);
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #f88400;
+            margin-bottom: 30px;
+        }
+        .timer-display {
+            font-size: 48px;
+            font-family: monospace;
+            margin: 20px 0;
+            color: #2c3e50;
+        }
+        button {
+            background-color: #4a6fa5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3a5a80;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        button.stop {
+            background-color: #e74c3c;
+        }
+        button.stop:hover {
+            background-color: #c0392b;
+        }
+        .relax-message {
+            display: none;
+            background-color: #e8f4f8;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .settings {
+            margin-top: 30px;
+            text-align: left;
+        }
+        select, input {
+            padding: 8px;
+            margin-left: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .notification-permission {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧘 Relaxini Ciupini</h1>
+        <div class="timer-display" id="timer">60:00</div>
+        
+        <div>
+            <button id="startBtn">Iniza a riposare</button>
+            <button id="stopBtn" class="stop" disabled>Stop</button>
+        </div>
+        
+        <div class="relax-message" id="relaxMessage">
+            <h2>⏰ Time to relax! ⏰</h2>
+            <ul style="text-align: left;">
+                <li>Take 3 deep breaths</li>
+                <li>Stretch your arms and shoulders</li>
+                <li>Look away from the screen</li>
+                <li>Drink some water</li>
+                <li>Remember: You're doing great!</li>
+            </ul>
+            <button id="resumeBtn">Resume Timer</button>
+        </div>
+        
+        <div class="settings">
+            <h3>Comandi</h3>
+            <div>
+                <label for="interval">Intervallino Carino Relax:</label>
+                <select id="interval">
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="45">45 minutes</option>
+                    <option value="60" selected>60 minutes</option>
+                    <option value="90">90 minutes</option>
+                    <option value="120">120 minutes</option>
+                </select>
+            </div>
+            <div style="margin-top: 10px;">
+                <label for="soundToggle">Notifica Sonora:</label>
+                <input type="checkbox" id="soundToggle" checked>
+            </div>
+        </div>
+        
+        <div class="notification-permission" id="notificationPermission">
+            <p>Enable notifications for reminders when tab is not active.</p>
+            <button id="enableNotifications">Enable Notifications</button>
+        </div>
+    </div>
+
+    <audio id="alertSound" src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3" preload="auto"></audio>
+
+    <script>
+        // DOM Elements
+        const timerDisplay = document.getElementById('timer');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const relaxMessage = document.getElementById('relaxMessage');
+        const intervalSelect = document.getElementById('interval');
+        const soundToggle = document.getElementById('soundToggle');
+        const alertSound = document.getElementById('alertSound');
+        const enableNotificationsBtn = document.getElementById('enableNotifications');
+        const notificationPermission = document.getElementById('notificationPermission');
+
+        // Variables
+        let timer;
+        let remainingSeconds = 60 * 60; // Default 60 minutes
+        let isRunning = false;
+        let notificationPermissionGranted = false;
+
+        // Check if notifications are supported and permission status
+        if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+                notificationPermissionGranted = true;
+                notificationPermission.style.display = 'none';
+            } else if (Notification.permission === 'denied') {
+                enableNotificationsBtn.disabled = true;
+                enableNotificationsBtn.textContent = 'Notifications Blocked';
+            }
+        } else {
+            notificationPermission.style.display = 'none';
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', startTimer);
+        stopBtn.addEventListener('click', stopTimer);
+        resumeBtn.addEventListener('click', resumeTimer);
+        intervalSelect.addEventListener('change', updateInterval);
+        enableNotificationsBtn.addEventListener('click', requestNotificationPermission);
+
+        // Initialize
+        updateTimerDisplay();
+
+        // Functions
+        function updateTimerDisplay() {
+            const minutes = Math.floor(remainingSeconds / 60);
+            const seconds = remainingSeconds % 60;
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            if (isRunning) return;
+            
+            isRunning = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            
+            timer = setInterval(() => {
+                remainingSeconds--;
+                updateTimerDisplay();
+                
+                if (remainingSeconds <= 0) {
+                    showRelaxMessage();
+                    stopTimer();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timer);
+            isRunning = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        }
+
+        function showRelaxMessage() {
+            relaxMessage.style.display = 'block';
+            
+            // Play sound if enabled
+            if (soundToggle.checked) {
+                alertSound.currentTime = 0;
+                alertSound.play();
+            }
+            
+            // Show notification if enabled and permission granted
+            if (notificationPermissionGranted && document.hidden) {
+                showNotification();
+            }
+        }
+
+        function resumeTimer() {
+            relaxMessage.style.display = 'none';
+            remainingSeconds = parseInt(intervalSelect.value) * 60;
+            updateTimerDisplay();
+            startTimer();
+        }
+
+        function updateInterval() {
+            if (!isRunning) {
+                remainingSeconds = parseInt(intervalSelect.value) * 60;
+                updateTimerDisplay();
+            }
+        }
+
+        function showNotification() {
+            if (!notificationPermissionGranted) return;
+            
+            const options = {
+                body: 'Take a break! Stretch and breathe deeply for a minute.',
+                icon: 'https://cdn-icons-png.flaticon.com/512/2936/2936886.png'
+            };
+            
+            new Notification('⏰ Time to relax!', options);
+        }
+
+        function requestNotificationPermission() {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    notificationPermissionGranted = true;
+                    notificationPermission.style.display = 'none';
+                    // Show a test notification
+                    showNotification();
+                } else {
+                    enableNotificationsBtn.disabled = true;
+                    enableNotificationsBtn.textContent = 'Notifications Blocked';
+                }
+            });
+        }
+
+        // Handle tab visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && isRunning) {
+                // Tab is hidden - we could send a notification when timer completes
+            }
+        });
+    </script>
+</body>
+</html>
+
